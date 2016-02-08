@@ -1,0 +1,30 @@
+---
+title: "U.S. Weather Events Impact Analysis"
+author: "DanGuti"
+date: "February 7, 2016"
+output: html_document
+---
+**Synopsis**  
+The analysis is started by retrieving weather event data and slimming down the data to only necessary variables.
+
+#Data Processing
+First step for the analysis is to download the data and assign it to a usable environment variable.
+```{r, cache=TRUE}
+u <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2" #file url address
+download.file(u,"StormData.csv.bz2") #download zip file
+sData <- read.csv("StormData.csv.bz2") #read csv data
+
+
+str(sData) #get some idea what variables are available.
+```
+
+Now we want to make things easier for our machines by getting rid of the variables that are not of interest to us.
+
+```{r}
+
+
+
+```
+
+#Results
+
