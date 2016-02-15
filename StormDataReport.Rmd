@@ -5,25 +5,162 @@ date: "February 7, 2016"
 output: html_document
 ---
 **Synopsis**  
-The analysis is started by retrieving weather event data and slimming down the data to only necessary variables.
+The analysis is started by retrieving weather event data and slimming down the 
+data to only necessary variables.
 
 #Data Processing
-First step for the analysis is to download the data and assign it to a usable environment variable.
+First step for the analysis is to download the data and assign it to a usable 
+environment variable.
 ```{r, cache=TRUE}
 u <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2" #file url address
 download.file(u,"StormData.csv.bz2") #download zip file
 sData <- read.csv("StormData.csv.bz2") #read csv data
 
 str(sData) #get some idea what variables are available.
+require(plyr)
+require(ggplot2)
+require(reshape2)
 ```
 
-Now we want to make things easier for our machines by getting rid of the variables that are not of interest to us.
+## Data Reduction
+Now we want to make things easier for our machines by getting rid of the 
+variables that are not of interest to us.
 
 ```{r}
-intvars <- c("EVTYPE","FATALITIES","INJURIES","PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP") #index of variables of interest
+intvars <- c("EVTYPE","FATALITIES","INJURIES","PROPDMG", "PROPDMGEXP", 
+             "CROPDMG", "CROPDMGEXP") #index of variables of interest
 sData <- sData[intvars] #reduce data to only relevant variables
 str(sData) #to show our reduced variables
 ```
+## Data Cleaning
+It seems like the crop damage exponential and property damage exponentials have 
+some invalid values (?, -, +).  
+Here it is assumed that the total value of property damages is of the type 
+PROPDMG * 10 ^ PROPDMGEXP.
+Under this assumption it would be of our interest to make this variable entirely 
+numeric, so that k = 3, h=2 and m=9 and so on.  
+Let's clean the exponential variables so that they are more practical to use.
 
-#Results
+```{r}
+require(plyr)
+require(ggplot2)
+require(reshape2)
+cData <- data.frame("EVTYPE" = sData$EVTYPE, "FATALITIES" = sData$FATALITIES, 
+                    "INJURIES" = sData$INJURIES)## Initialize cData frame where clean exponential values will be entered
+
+## Making the damage exponentials uniform numerical data
+### Replace levels for property damage exponential
+levels(sData$PROPDMG) #look at the levels we have from property damage exponentials
+
+replacing <- c("?" = NA, 
+              "-" = 0, "+" = 0, 
+              "h" = 2, "H" = 2, 
+              "K" = 3,
+              "m" = 6, "M" = 6,
+              "B" = 9) #list of value equivalencies to transform letters to number exponential
+cleanPDMGEXP <- revalue(sData$PROPDMGEXP, replacing) #transform letters to exponential values. The given number is assumed to be of the form 10^x.
+
+lv <- levels(cleanPDMGEXP) #save levels of property damage exponential
+lv[1] = NA #when no damage is reported, list as NA
+levels(cleanPDMGEXP) = lv #Fix levels on cleanPDMGEXP
+cleanPDMGEXP = as.numeric(levels(cleanPDMGEXP)[cleanPDMGEXP]) #converts factor variable to numeric
+cData$totPdmg <- sData$PROPDMG * 10^cleanPDMGEXP
+```
+So far, we cleaned the property damage exponential variable of non-valid values,
+then changed all values to numeric; and finally, created a 
+total property damage variable that gives a dollar amount for property damage.  
+Our next step is to do the same for the corresponding crop damage variables.
+
+```{r}
+### Replace levels for crop damage exponential
+levels(sData$CROPDMGEXP) #look at the levels we have from property damage exponentials
+
+replacing <- c("?" = NA, 
+               "k" = 3, "K" = 3,
+               "m" = 6, "M" = 6,
+               "B" = 9) #list of value equivalencies to transform letters to number exponential
+cleanCDMGEXP <- revalue(sData$CROPDMGEXP, replacing) #transform letters to exponential values. The given number is assumed to be of the form 10^x.
+
+lv <- levels(cleanCDMGEXP) #save levels of property damage exponential
+lv[1] = NA #when no damage is reported, list as NA
+levels(cleanCDMGEXP) = lv #Fix levels on cleanPDMGEXP
+cleanCDMGEXP = as.numeric(levels(cleanCDMGEXP)[cleanCDMGEXP])#converts factor variable to numeric, the -1 offsets the value to match the levels
+cData$totCdmg <- sData$CROPDMG * 10^cleanCDMGEXP
+
+### Finally, we change NA's to 0 in the totCdmg and totPdmg variables, so that we only have dollar amounts and can come up with one single damage No.
+cData$totPdmg[is.na(cData$totPdmg)] <- 0 #change NA's to 0
+cData$totCdmg[is.na(cData$totCdmg)] <- 0 #change NA's to 0
+cData$totDmg <- cData$totPdmg + cData$totCdmg #create totals column for damage
+```
+Now we have clean and useful variables gathered in cData. Let's take a look:
+
+```{r}
+head(cData)
+```
+
+This looks much better now. Let's see what we can find out about weather events.
+
+#Data Summary
+
+Now we can produce a useful summary of the data that we are interested in.
+We aggregate data by event type, so that we know how many fatalities and injuries
+each specific type of event causes.
+```{r}
+## Harmful events - Injuries or Fatalities
+Harm <- aggregate(cData[,2:3], list(EVTYPE = cData$EVTYPE), sum) #create table with fatality and Injury aggregates
+
+
+## Damage
+Dam <- aggregate(cData[,4:6], list(EVTYPE = cData$EVTYPE), sum) #aggregate fatalities
+
+```
+With all the data available to us, let's take a look at the results.
+
+# Results
+Now let's order the events my most harmful, and most damaging.
+Let's consider most harmful to be those with most fatalities, and similarly
+most damaging to be those with most *total* damages in $ amount.
+
+```{r}
+TopHarm <- head(arrange(Harm,desc(Harm$FATALITIES))) #retrieve 6 EVTYPEs with most fatalities
+TopDam <- head(arrange(Dam,desc(Dam$totDmg))) #retrieve 6 EVTYPEs with most total damage
+TopHarm
+TopDam
+```
+Now we can observe the most damaging and harmful events as shown in the tables above.
+Finally, let's plot that data for a more visual representation of the data.
+
+```{r}
+TH <- melt(TopHarm, id = "EVTYPE")
+
+
+ggplot(data=TH, aes(x=EVTYPE, y=value, fill=variable)) + 
+  geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=60,hjust=0.9,vjust=0.9))+
+  ggtitle("Weather Event Harm") +
+  labs(x="Event Type",y="Fatalities or Injuries") 
+```
+  
+  Figure 1. Number of fatalities/injuries by event type.  
+    
+  
+  
+```{r}
+TD <- melt(TopDam[,1:3], id = "EVTYPE")
+ggplot(data=TD, aes(x=EVTYPE, y=value, fill=variable)) + 
+  geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=60,hjust=0.9,vjust=0.9))+
+  ggtitle("Weather Event Damages") +
+  labs(x="Event Type",y="Value of Damages ($)") 
+```
+  
+  Figure 2. Damage in USD per event type.  
+  
+  
+From these plots it is easier to conclude a few things:
+
+1. The most harmful event is no doubt tornadoes, with the most fatalities and injuries.
+2. The most damaging event on the other hand are floods, with almost double the amount of total damages as the second place.
+3. Within the events that cause the most damage, property damage is by far the most significant contribution to the damages total.
+4. Tornadoes with the most casualties by far, and a third place in damages is quite possibly the most relevant type of event.
 

@@ -62,21 +62,29 @@ cData$totDmg <- cData$totPdmg + cData$totCdmg
 # Create data summaries
 
 ## Harmful events - Injuries or Fatalities
-Fat <- aggregate(cData$FATALITIES, list(cData$EVTYPE), sum) #aggregate fatalitiesnam
-names(Fat) = c("EVTYPE","FATALITIES")
-FatSum <- head(arrange(Fat,desc(Fat$FATALITIES))) #retrieve 6 EVTYPEs with most fatalities
+Harm <- aggregate(cData[,2:3], list(EVTYPE = cData$EVTYPE), sum) #create table with fatality and Injury aggregates
+TopHarm <- head(arrange(Harm,desc(Harm$FATALITIES))) #retrieve 6 EVTYPEs with most fatalities
 
-Inj <- aggregate(cData$INJURIES, list(cData$EVTYPE), sum) #aggregate fatalities
-names(Inj) = c("EVTYPE","INJURIES")
-InjSum <- head(arrange(Inj,desc(Inj$INJURIES))) #retrieve 6 EVTYPEs with most fatalities
+TH <- melt(TopHarm, id = "EVTYPE")
 
 ## Damage
-Dam <- aggregate(cData$totDmg, list(cData$EVTYPE), sum) #aggregate fatalities
-names(Dam) = c("EVTYPE","totDmg")
-DamSum <- head(arrange(Dam,desc(Dam$totDmg))) #retrieve 6 EVTYPEs with most fatalities
+Dam <- aggregate(cData[,4:6], list(EVTYPE = cData$EVTYPE), sum) #aggregate fatalities
+TopDam <- head(arrange(Dam,desc(Dam$totDmg))) #retrieve 6 EVTYPEs with most total damage
 
+TD <- melt(TopDam[,1:3], id = "EVTYPE")
 ## Results
-op <- par(mar = c(9,4,4,2) + 0.1) ## Enlong margins for better visualization
+  ##op <- par(mar = c(9,4,4,2) + 0.1) ## Enlong margins for better visualization
+  ##
+  ##barplot(FatSum$FATALITIES, names.arg = InjSum$EVTYPE, las = 2)
+  ##barplot(InjSum$INJURIES, names.arg = InjSum$EVTYPE, las = 2)
+ggplot(data=TH, aes(x=EVTYPE, y=value, fill=variable)) + 
+  geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=60,hjust=0.9,vjust=0.9))+
+  ggtitle("Weather Event Harm") +
+  labs(x="Event Type",y="Fatalities or Injuries") 
 
-barplot(FatSum$FATALITIES, names.arg = InjSum$EVTYPE, las = 2)
-barplot(InjSum$INJURIES, names.arg = InjSum$EVTYPE, las = 2)
+ggplot(data=TD, aes(x=EVTYPE, y=value, fill=variable)) + 
+  geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=60,hjust=0.9,vjust=0.9))+
+  ggtitle("Weather Event Damages") +
+  labs(x="Event Type",y="Value of Damages ($)") 
